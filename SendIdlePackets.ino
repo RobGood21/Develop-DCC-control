@@ -4,18 +4,32 @@ Flash LED every second
 */
 
 int timer1_counter;
+const int TIMETRUE = 34286;
+const int TIMEFALSE = 6200;
+
 boolean BITPART = false;
 unsigned long TIMERSLOW = 0; //Langzame timer voor zaken die niet 10 miljoen x per seconde hoeven
 boolean KNOPSTATUS = false;
 boolean STOP = false;
+// voor bitverwering
+boolean BITREADY = true; //bit is nu KLAAR >> nieuw bit
+boolean BIT = false; // holder voor het huidige bit wat wordt verzonden
+int COUNTBIT =0 ;
+
 
 boolean PACKET[45]; //array voor een packett binair 
 
 void setup()
 {
+	//packett maken voor begin
+	IDLE();
+
 	pinMode(13, OUTPUT);
 	pinMode(3, OUTPUT);
 	pinMode(4, OUTPUT);
+	
+	
+	
 	// initialize timer1 
 	noInterrupts();           // disable all interrupts
 	TCCR1A = 0;
@@ -27,20 +41,49 @@ void setup()
 	timer1_counter = 34286; //65532;   // preload timer 65536-16MHz/256/2Hz   34286
 
 
-	TCNT1 = timer1_counter;   // preload timer
+	TCNT1 = TIMETRUE;   // preload timer
 	TCCR1B |= (1 << CS12);    // 256 prescaler 
 	TIMSK1 |= (1 << TOIE1);   // enable timer overflow interrupt
 	interrupts();             // enable all interrupts
 }
+void IDLE() { // Maak een idle PACKET
+	int i = 0;
+	while (i < 45) {
+		PACKET[i] = true;
+		i++;
+	}
+}
+void GETBIT() {
+
+}
 
 ISR(TIMER1_OVF_vect)        // interrupt service routine 
 {
-	TCNT1 = timer1_counter;   // preload timer
-	BITPART = !BITPART;
-	digitalWrite(13, digitalRead(13) ^ 1);
-	if (STOP==false) SETOUTPUTS(BITPART);
 
+	
+	if (BITPART == false) { //2e deel van bit, bit nu klaar nieuw bit ophalen uit packet
+		BITPART = true;
+		BIT = PACKET[COUNTBIT];
+		}
+		else
+		{
+			BITPART = false;
+		}
+
+		
+	if (BIT == true) { // timer interrupt weer instellen.
+		TCNT1 = TIMETRUE;   // preload timer
+	}
+		else {
+		TCNT1 = TIMEFALSE;   // preload timer
+		}
+		if (STOP==false) SETOUTPUTS(BITPART); // outputs aansturen
+		digitalWrite(13, digitalRead(13) ^ 1);
+
+		COUNTBIT++; //teller naar volgend bit 
+		if (COUNTBIT > 45) COUNTBIT = 0;
 }
+
 void HALT() { //stopt de controller
 	STOP = true;
 	digitalWrite(3, LOW);
